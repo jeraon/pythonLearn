@@ -1,0 +1,350 @@
+# Models 
+Model是Django中的模型层，用来构建和操纵你的Web应用的数据。
+Django中使用ORM框架来操作数据库，因此不需要使用SQL语句对数据库进行操作，而是使用类和类的对象来进行操作。
+Django提供了model用来管理、构建应用程序的数据，model是数据单一、明确的信息源，它包含数据库中存储的所有重要字段，一般而言，每个model映射一个数据库表。
+因此，在Django中，不需要使用SQL语句对数据库进行操作，而是使用类和类的对象来进行操作，这种方式称为ORM，
+
+###### 特点：
+1.每个model都是继承于django.db.models.Model的Python类，因此需要导入该模块包：from django.db import models
+2.model中的每个属性都代表一个数据库字段
+##### 如何创建model：
+在对应应用的model.py中，创建一个类就代表数据库中的一张表，类中的每个属性代表数据库表中的字段：
+```python
+from django.db import models
+
+class Student(models.Model):
+    name = models.CharField(max_length=40)
+    age = models.IntegerField(null=False)
+    number = models.IntegerField(unique=True)
+```
+创建好model后，需要创建对应的表，通过如下命令：
+```bash
+(.py3env) $ python manage.py makemigrations # 
+(.py3env) $ python manage.py migrate # 创建一张表
+```
+此时说明在数据库中已经创建了一张表，表名格式为:应用名_model，因此会生成polls.student表，查看建表语句：
+```bash
+mysql> desc polls_student;
++--------+-------------+------+-----+---------+----------------+
+| Field  | Type        | Null | Key | Default | Extra          |
++--------+-------------+------+-----+---------+----------------+
+| id     | int(11)     | NO   | PRI | NULL    | auto_increment |
+| name   | varchar(40) | NO   |     | NULL    |                |
+| age    | int(11)     | NO   |     | NULL    |                |
+| number | int(11)     | NO   | UNI | NULL    |                |
++--------+-------------+------+-----+---------+----------------+
+4 rows in set (0.00 sec)
+```
+> ORM技术：对象关系映射，实现了对象和数据库之间的映射，隐藏了数据访问的细节，不需要编写SQL语句，
+### 如何使用model
+可以通过Django Shell来和数据库交互，首先进入Django Shell：
+```python manage.py shell
+```
+输入以下代码
+```bash
+>>> from polls.models import Student
+>>> stu = Student(name='Zhangsan', age=21, number='011')
+>>> stu.save()
+```
+save()函数相当于insert操作，此时会将该条信息插入到对应表中，来查看下该表：
+```bash
+mysql> select * from polls_student;
++----+----------+-----+--------+
+| id | name     | age | number |
++----+----------+-----+--------+
+|  1 | Zhangsan |  21 |     11 |
++----+----------+-----+--------+
+1 row in set (0.00 sec)
+
+mysql> 
+```
+掌握了最基本用法后，下面对模型中的字段进行总结。
+### Field 字段
+数据库表中存储的字段都是通过Model中来定义，在Model中，每个字段被定义为Model类的属性，如：
+
+> 注意：字段定义不能和ModelAPI中已有的标识符重复，以免冲突；
+###### 字段类型(Field types)
+Django中定义model时的每个字段类型都继承自Field类:
+ CharField(max_length=None, **options)：对应数据库中的varchar类型
+ TextField(**options):存储大文本信息，对应数据库中的longtext类型
+ IntegerField(**options)：对应数据库中的int类型
+ DateTimeField():对应数据库中的datetime类型
+ FloatField():对应数据库中的double类型
+ 
+##### 字段可选项(Field options)
+max_length:CharField字段中用于指定大小,如：
+```python
+name = models.CharField(max_length=40) # varchar(40)
+```
+null：如果设置为ture，则该字段可以存储空值，默认为False
+blank：如果设置为ture，则该字段可以存储空值，默认为False
+> 注意：这两者区别：null是和纯数据相关，null=True表示，该字段允许为NULL和空值''，null=False表示该字段不能为空；blank和验证相关，blank=true表示form验证时允许输入空值，blank=False表示需要一个值
+default：字段默认值,如：
+```python
+
+```
+help_text：会展示在form表单上？
+primary_key：如果设置为true，则该字段将会被设置为主键
+> 注意：
+默认情况下，Django为每个Model提供了如下字段用于创建一个自增主键：
+```
+id = models.AutoField(primary_key=True)
+```
+如果在定义model时，显示提供了primary_key=True，则Django不会提供自增主键了。
+
+unique：如果设置为true，该字段在表中唯一的。
+##### Verbose field names 详细字段名
+除 ForeignKey, ManyToManyField and OneToOneField三种字段类型外，Django中的每个字段类型，都可以使用第一个位置参数来指定一个详细的名字，如果没有指定，则默认使用该字段属性名。
+以上三中字段类型需要将model作为第一个参数
+### 关系型数据库设计
+Django提供了三种关系型数据库设计方式：
+1.多一对一关系型：如学生和班级就是多对一关系，多个学生可以对应一个班级，但多个班级不能对应一个学生，通过ForeignKey字段定义。
+ForeignKey(to, on_delete, **options)参数：
+to:表示关联的model，
+on_delete:当ForeignKey被引用的对象删除时，Django将会根据on_delete指定的参数进行SQL约束，CASCADE表示级联删除。
+**options:当on_delete=SET_NULL时指定null=True，blank=True，或用来指定其他属性
+这两个model创建如下：
+```python
+from django.db.models import ForeignKey
+
+class Student(models.Model):
+    classroom = models.ForeignKey('classRoom', on_delete=models.CASCADE)
+    name = models.CharField(max_length=40)
+    age = models.IntegerField(null=False)
+    number = models.IntegerField(unique=True)
+    description = models.TextField()
+    time = models.DateTimeField()
+    avg_score = models.FloatField(default=0.0)
+
+
+class classRoom(models.Model):
+    member = models.IntegerField()
+    head_teacher = models.CharField(max_length=40)
+```
+创建后，在学生表中会有一个班级表id字段作为外键。
+2.多对多关系型：通过 ManyToManyField字段定义，第一个参数表示关联的model
+3.一对一关系型：通过 OneToOneField字段定义，
+
+### 查询数据库
+当创建好数据库后，就可以进行CRUD操作了，Django中提供了用于CRUD的API，下面通过实例，对CRUD相关API进行总结。
+###### 1.添加数据
+如何添加数据在上面已经提到过了，在Django中，一个model映射到数据库中的一张表，而一个model对象则代表该表中的一条记录，现在通过Django Shell来添加数据：
+```bash
+$ python manage.py shell
+>>> from relate.models import Student
+>>> stu1 = Student(name='xiaohong',age=21,number=2014,description='good girl',time='2018-4-18',avg_score=70,classroom_id=1)
+>>> stu1.save()
+```
+save()方法相当于执行Insert into table的操作,此时数据库表中已成功插入一条数据。
+###### 2.更新数据
+更新数据也是通过save()方法进行，如：
+```bash
+>>> stu1.name='Little.Hong'
+>>> stu1.save()
+>>> 
+```
+###### 3.查询数据
+对数据库中的数据进行查询，Django中要通过一个类——models.Manager来进行，Manager会返回一个QuerySet，每个model至少有一个Manager，默认为objects。
+QuerySet表示数据库中的对象集合。它可以有零个、一个或多个过滤器，过滤器通过给定的参数缩小查询范围，在Django中QuerySet相当于select语句。
+在Manager中，all()方法会返回当前数据库中所有对象的QuerySet，如：
+```bash
+>>> Student.objects.all()
+<QuerySet [<Student: Student object (4)>, <Student: Student object (5)>]>
+>>> 
+```
+相当于select * from student;
+如果进行条件查询，在QuerySet中提供了两个方法：
+filter(**kwargs):返回一个包含给定查找参数对象的新QuerySet。
+exclude(**kwargs):返回一个不包含给定查找参数对象的新QuerySet。
+如，查找学号为2014的学生：
+```bash
+>>> Student.objects.all().filter(number=2014)
+<QuerySet [<Student: Student object (5)>]>
+>>> 
+```
+或者
+```bash
+>>> Student.objects.filter(number=2014)
+<QuerySet [<Student: Student object (5)>]>
+>>> 
+```
+支持链式查询：
+```bash
+>>> Student.objects.filter(
+... name='Little.Hong'
+... ).exclude(
+... age=23)
+<QuerySet [<Student: Student object (5)>]>
+>>> 
+```
+或者可以将每次得到的QuerySet赋给变量进行存储，之后可以进行复用：
+```bash
+>>> q1 = Student.objects.filter(name='Little.Hong')
+>>> q2 = q1.exclude(age=32)
+>>> q3 = q2.filter(number=2012)
+>>> q1
+<QuerySet [<Student: Student object (5)>]>
+>>> q2
+<QuerySet [<Student: Student object (5)>]>
+>>> q3
+<QuerySet []>
+>>> 
+```
+通过objects，fillter等从数据库中查到了QuerySet对象，如果要获取单一对象，需要使用objects.get()方法，如：
+```bash
+>>> Student.objects.get(pk=5)
+<Student: Student object (5)>
+```
+> django在同步models时候会自动为每个表创建1个id字段==pk字段。
+
+> 注意：manager 只能通过model类名来访问，不能通过model对象来访问，因为model对象代表的是一条记录。
+##### Model属性
+objects：
+===================================================
+
+
+class Student(models.Model):
+    classroom = models.ForeignKey('classRoom', on_delete=models.CASCADE)
+    name = models.CharField(max_length=40)
+    age = models.IntegerField(null=False)
+    number = models.IntegerField(unique=True)
+    description = models.TextField()
+    time = models.DateTimeField()
+    avg_score = models.FloatField(default=0.0)
+
+
+class classRoom(models.Model):
+    member = models.IntegerField()
+    head_teacher = models.CharField(max_length=40)
+===================================================
+
+# View视图层
+DJango中的视图层，负责处理用户的请求并返回响应。
+一个视图，简单来说就是一个Python函数，用户接受web请求，同时返回web响应。响应可以是文本、HTML页面、图像...视图定义可以在项目的任意一个模块中，但是Django中一般在views.py中定义。或者可以说每个应用的views.py
+的主要功能就是创建视图。
+1.创建视图
+创建视图基本格式如下，在任意应用的views.py中：
+```python
+from django.http import HttpRequest,HttpResponse
+
+
+def helloword(request):
+    return HttpResponse("Hello,Django!")
+```
+2.映射URL
+创建好视图之后，需要提供一个url在浏览器中访问。首先有一个疑问：
+ Django如何处理一个请求？
+	
+	1.一般情况下，Django通过配置文件settings.py中ROOT_URLCONF配置的值来决定根URLConfig。如果请求的HttpRequest中带有urlconf属性，则会使用该urlconf。
+	2.Django加载根URLConfig中指定的模块中urlpatterns的值，这些值是django.urls.path()或django.urls.re_path()实例的list
+	3.Django依次匹配根URLConfig中每个URL模式，在与请求的URL匹配的第一个模式停下来.
+	4.一旦匹配到合适的urlpatterns，Django就会导入并且调用给定view的函数。并且传入一个HttpRequest作为第一个参数，如果url中有匹配的参数，则作为参数。
+	5.如果没有匹配到urlpatterns，Django会引入一个合适的错误处理视图，如404、400...
+
+知道url匹配原理后，就可以为这个视图设计一个url了，首先寻找根URLConf，在Settings.py中：
+```
+ROOT_URLCONF = 'mysite.urls'
+```
+因此mysite.urls.py为根URLConf，在mysite.urls.py中：
+```python
+
+"""mysite URL Configuration
+
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/2.0/topics/http/urls/
+Examples:
+Function views
+    1. Add an import:  from my_app import views
+    2. Add a URL to urlpatterns:  path('', views.home, name='home')
+Class-based views
+    1. Add an import:  from other_app.views import Home
+    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
+Including another URLconf
+    1. Import the include() function: from django.urls import include, path
+    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+"""
+from django.contrib import admin
+from django.urls import path,include
+from polls import views
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+]
+```
+在这个文件注释中对三种方式创建url进行了说明。首先导入对应的views模块，然后在urlpatterns列表中通过path()来指定一个url，如：
+```python
+from polls import views
+path('hello/', views.helloword, name='helloword'),
+```
+现在就可以在浏览器中访问该视图了，输入http://127.0.0.1:8000/hello.
+这是使用第一种方式进行url创建的，但是并不推荐这种方式，而应该使用第三种方式，通过include()函数来引入其他的urlconf，使用这种方式创建url如下：
+```
+path('hello/', include('polls.urls')),
+```
+引入了polls.urls.py,在polls.urls.py中：
+```
+from . import views
+path('', views.helloword),
+```
+
+
+
+
+3.处理错误
+HttpResponse的一些子类代表了HTTP请求中的一些状态码(除200外)，因此如果遇到错误，返回其子类即可。
+# URL设计
+
+
+> 注意：要从url中捕获一个值，使用<>,如：
+ path('articles/<int:year>/<int:month>/', views.month_archive),
+=============================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
